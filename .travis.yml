@@ -22,6 +22,6 @@ after_success:
 # Uploading to CodeCov
 - bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
 
-notifications:
-  email:
-    - kosrok97@gmail.com
+#notifications:
+#  email:
+#    - kosrok97@gmail.com
