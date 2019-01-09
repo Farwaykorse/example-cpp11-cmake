@@ -1,10 +1,61 @@
 language: cpp
 os: linux
-compiler: gcc
 
-addons:
-  apt:
-    packages: lcov
+matrix:
+  include:
+  - name: GCC
+    env:
+    - C_compiler: gcc
+    - CXX_compiler: g++
+    - Coverage: true
+  - name: GCC+lcov
+    env:
+    - C_compiler: gcc
+    - CXX_compiler: g++
+    - Coverage: lcov
+    addons:
+      apt:
+        packages: lcov
+  - name: clang+grcov
+    env:
+    - C_compiler: clang
+    - CXX_compiler: clang++
+    - Coverage: grcov
+
+before_install:
+- |
+  # Setup
+  mkdir -p ~/tools
+  eval "CC=${C_compiler:?} && CXX=${CXX_compiler:?}"
+- |
+  # Install Mozilla/grcov
+  if [[ ${Coverage:-} && ${Coverage} == "grcov" ]]; then
+  ( set -Eeuxo pipefail
+    GRCOV_TAG="v0.3.2"
+    GRCOV_SHA512="8d29bd3aee6855a50d0b55b3e3ea14a51b989451aedebb8f2f15d309d4887e5aa005ed140148800fe198fadbeb844355e8df310d47f77edc453d8754f667c790"
+
+    os=${TRAVIS_OS_NAME}
+    file_name="grcov-${os}-x86_64.tar.bz2"
+    GRCOV_URL="https://github.com/mozilla/grcov/releases/download/${GRCOV_TAG}/${file_name}"
+    mkdir -p ~/tools/grcov
+    echo "Download grcov..."
+    wget "${GRCOV_URL}" --tries=3 --timeout 90 -nc
+    sum=$(sha512sum ${file_name})
+    sum=${sum:0:128}
+    if [[ ${sum} == ${GRCOV_SHA512} ]]; then
+      tar -xjf ${file_name}
+      mv grcov ~/tools/grcov
+      rm grcov-*
+      echo "Finished installing grcov"
+    else
+      echo "grcov hash has changed!"    >&2
+      echo "Expecting: ${GRCOV_SHA512}" >&2
+      echo "Actual:    ${sum}"          >&2
+      exit 1
+    fi
+  )
+  export PATH=$PATH:$HOME/tools/grcov
+  fi
 
 before_script:
 - mkdir -p build && cd build
@@ -15,12 +66,31 @@ script:
 - ctest -j $(nproc) --output-on-failure
 
 after_success:
-# Create lcov report
-- lcov --capture --directory . --output-file coverage.info
-- lcov --remove coverage.info '/usr/*' --output-file coverage.info # filter system-files
-- lcov --list coverage.info
-# Uploading to CodeCov
-- bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
+- |
+  # Code coverage
+  cd ${TRAVIS_BUILD_DIR}
+  if [[ ${Coverage:-} ]]; then
+  ( set -Eeuxo pipefail
+    if [[ ${Coverage} == "grcov" ]]; then
+      coverage_report="coverage.json"
+      flags="-t coveralls+ --token unused --commit-sha ${TRAVIS_COMMIT}"
+      if [[ ${CXX_compiler:-} == clang* ]]; then flags="${flags} --llvm"; fi
+      flags="${flags} --branch"
+      grcov ./build ${flags} > ${coverage_report}
+    elif [[ ${Coverage} == "lcov" ]]; then
+      coverage_report="coverage.info"
+      lcov --capture --directory ./build --output-file coverage.info
+      lcov --remove coverage.info '/usr/*' --output-file coverage.info # filter system-files
+      lcov --list coverage.info
+    fi
+    bash_flags="-n ${TRAVIS_JOB_NAME}"
+    if [[ ${coverage_report:-} && -f "${coverage_report}" ]]; then
+      bash_flags="${bash_flags} -f ${coverage_report}"
+    fi
+    bash <(curl -s https://codecov.io/bash) ${bash_flags} ||
+      echo "Codecov did not collect coverage reports"
+  )
+  fi
 
 #notifications:
 #  email:
