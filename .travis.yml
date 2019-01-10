@@ -21,19 +21,37 @@ matrix:
     - C_compiler: clang
     - CXX_compiler: clang++
     - Coverage: grcov
+  - name: AppleClang
+    os: osx
+    osx_image: xcode10.1
+    env:
+    - Coverage: grcov
+    addons:
+      homebrew:
+        packages:
+        - coreutils # for sha512sum & nproc
+        - bash      # update bash to at least v4.0
 
 before_install:
 - |
   # Setup
   mkdir -p ~/tools
-  eval "CC=${C_compiler:?} && CXX=${CXX_compiler:?}"
+  if [[ ${C_compiler:-} ]]; then   export CC=${C_compiler:?}; fi
+  if [[ ${CXX_compiler:-} ]]; then export CXX=${CXX_compiler:?}; fi
+  if [[ ${TRAVIS_OS_NAME} == "osx" ]]; then
+    export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
+  fi
 - |
   # Install Mozilla/grcov
   if [[ ${Coverage:-} && ${Coverage} == "grcov" ]]; then
   ( set -Eeuxo pipefail
     GRCOV_TAG="v0.3.2"
-    GRCOV_SHA512="8d29bd3aee6855a50d0b55b3e3ea14a51b989451aedebb8f2f15d309d4887e5aa005ed140148800fe198fadbeb844355e8df310d47f77edc453d8754f667c790"
-
+    if [[ ${TRAVIS_OS_NAME} == "linux" ]]; then
+      GRCOV_SHA512="8d29bd3aee6855a50d0b55b3e3ea14a51b989451aedebb8f2f15d309d4887e5aa005ed140148800fe198fadbeb844355e8df310d47f77edc453d8754f667c790"
+    elif [[ ${TRAVIS_OS_NAME} == "osx" ]]; then
+      GRCOV_SHA512="94a9bca1ca54e6d0b3eadc0aa88263852df8e29f5d3739142ff981a486ec90e25fb01f63443a90805856aec28b64d0e4327530cd4b50bb37ac4a8b05e9594481"
+    fi
+    echo "-- Installing grcov ${GRCOV_TAG}..."
     os=${TRAVIS_OS_NAME}
     file_name="grcov-${os}-x86_64.tar.bz2"
     GRCOV_URL="https://github.com/mozilla/grcov/releases/download/${GRCOV_TAG}/${file_name}"
