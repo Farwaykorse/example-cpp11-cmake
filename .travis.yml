@@ -30,7 +30,6 @@ matrix:
       homebrew:
         packages:
         - coreutils # for sha512sum & nproc
-        - bash      # update bash to at least v4.0
 
 before_install:
 - |
