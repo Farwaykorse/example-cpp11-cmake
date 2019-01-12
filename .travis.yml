@@ -10,8 +10,8 @@ before_script:
 - mkdir -p build && cd build
 
 script:
-- cmake -DCODE_COVERAGE=ON ..
-- cmake --build . --config Debug -- -j $(nproc)
+- cmake -DCODE_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug ..
+- cmake --build . --config Debug
 - ctest -j $(nproc) --output-on-failure
 
 after_success:
